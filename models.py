@@ -1,17 +1,26 @@
+from functools import total_ordering
+from datetime import datetime
+
 class Table:
-   
     def __init__(self, teams, fixtures_to_play):
         self.teams = teams
         self.fixtures_to_play = fixtures_to_play
         self.fixtures_played = []
 
-        sort_teams()
-        reorder_fixtures()
+        self.sort_teams()
+        self.reorder_fixtures()
+
+    def sort_teams(self):
+        self.teams = sorted(self.teams)
+   
+    def reorder_fixtures(self):
+        self.fixtures_to_play = sorted(self.fixtures_to_play)
 
     @staticmethod
     def load_data_from_file(file):
         teams = {}
         fixtures = []
+        next(file) # skipping first line
         for line in file:
             data = line.split(",")
             div = data[0]
@@ -39,6 +48,7 @@ class Table:
 
         return Table(list(teams.values()), fixtures)
 
+@total_ordering
 class Team:
     def __init__(self, name):
         self.name = name
@@ -54,33 +64,35 @@ class Team:
     def gd(self):
         return self.gf - self.ga
 
-    def __cmp__(self, other):
+    def __repr__(self):
+        return (
+            f"Team{{name: {self.name}, points: {self.points()}, won: {self.won}, lost: {self.lost}, drawn: {self.drawn}, " 
+            f"gd: {self.gd()}, gf: {self.gf}, ga: {self.ga}}}"
+        )
+
+    def __lt__(self, other):
         if other == None or not isinstance(other, Team):
-            return 1
+            return False
+      
+        if self.points() == other.points():
+            if self.gd() == other.gd():
+                if self.gf == other.gf:
+                    return self.name < other.name
+                return self.gf > other.gf
+            return self.gd() > other.gd()
+        return self.points() > other.points()
+    
+    def __eq__(self, other):
+        if other == None or not isinstance(other, Team):
+            return False
 
-        if self.points() > other.points():
-            return 1
-        elif other.points() > self.points():
-            return -1
-        
-        if self.gd() > other.gd():
-            return 1
-        elif other.gd() > self.gf():
-            return -1
+        return self.points() == other.points() and self.gd() == other.gd() and self.gf == other.gf and self.name == other.name
 
-        if self.gf > other.gf:
-            return 1
-        elif other.gf > self.gf:
-            return -1
-
-        # Technical rules here are to do head to head points, then away goals in head to head, but I am too lazy to care.
-        return self.name.__cmp__(other.name)
-
+@total_ordering
 class Match:
     def __init__(self, div, date, time, home, away, fthg, ftag, ftr, hthg, htag, b365h, b365d, b365a):
         self.div = div
-        self.date = date
-        self.time = time
+        self.datetime = datetime.strptime(date + " " + time, "%d/%m/%Y %H:%M")
         self.home = home
         self.away = away
         self.fthg = fthg
@@ -92,6 +104,24 @@ class Match:
         self.b365d = b365d
         self.b365a = b365a
 
-    def __cmp__(self, obj):
-        if obj == None or not isinstance(obj, Team):
-            return 1
+    def __repr__(self):
+        return (
+            f"Match{{div: {self.div}, datetime: {self.datetime}, home: {self.home}, away: {self.away}, fthg: {self.fthg}, "
+            f"ftag: {self.ftag}, ftr: {self.ftr}, hthg: {self.hthg}, htag: {self.htag}, b365h: {self.b365h}, b365d: {self.b365d}, "
+            f"b36ga: {self.b365a}}}"
+        )
+
+    def __lt__(self, other):
+        if other == None or not isinstance(other, Match):
+            return False
+
+    def __eq__(self, other):
+        if other == None or not isinstance(other, Match):
+            return False
+
+        return self.div == other.div and self.datetime == other.datetime \
+                and self.home == other.home and self.away == other.away \
+                and self.fthg == other.fthg and self.ftag == other.ftag \
+                and self.ftr == other.ftr and self.hthg == other.hthg \
+                and self.htag == other.htag and self.b365h == other.b365h \
+                and self.b365d == other.b365d and self.b365a == other.b365a
