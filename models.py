@@ -1,6 +1,31 @@
 from functools import total_ordering
 from datetime import datetime
 
+class Bet:
+    def __init__(self, fixture, result, odds, amount):
+        self.fixture = fixture
+        self.result = result
+        self.odds = odds
+        self.amount = amount
+
+    def check(self):
+        if self.fixture.ftr == self.result:
+            return True
+        else:
+            return False
+
+    def get_return(self):
+        if self.check():
+            return self.get_profit()
+        else:
+            return self.get_loss()
+
+    def get_profit(self):
+        return (self.amount * self.odds) - self.amount
+
+    def get_loss(self):
+        return self.amount
+
 class Table:
     def __init__(self, teams, fixtures_to_play):
         self.teams = teams
@@ -16,47 +41,122 @@ class Table:
     def reorder_fixtures(self):
         self.fixtures_to_play = sorted(self.fixtures_to_play)
 
+    def play_next_fixture(self):
+        fixture = self.fixtures_to_play[0]
+        self.fixtures_to_play.remove(fixture)
+        fixture.play()
+        self.fixtures_played.append(fixture)
+
+    def has_next_fixture(self):
+        return len(self.fixtures_to_play) > 0
+    
+    def get_next_fixture(self):
+        return self.fixtures_to_play[0]
+
+    def show_table(self):
+        self.sort_teams()
+
+        print("Pos. Team | MP | W D L | GF GA GD | Pts")
+        print("---------------------------------------")
+
+        longest_name = 0
+        for i in range(len(self.teams)):
+            team = self.teams[i]
+            value = len(team.name) + 2 + len(str(i + 1))
+            if value > longest_name:
+                longest_name = value
+
+        for i in range(len(self.teams)):
+            team = self.teams[i]
+            display_name = f"{i + 1}. {team.name}"
+            while len(display_name) < longest_name:
+                display_name += " "
+            print(f"{display_name} | {team.played()} | {team.won} {team.drawn} {team.lost} | {team.gf} {team.ga} {team.gd()} | {team.points()}")
+            
+
     @staticmethod
     def load_data_from_file(file):
         teams = {}
         fixtures = []
-        next(file) # skipping first line
+        line = next(file) # skipping first line
+        has_time = 'Time' in line
         for line in file:
             data = line.split(",")
             div = data[0]
             date = data[1]
-            time = data[2]
             
-            if data[3] not in teams:
-                teams[data[3]] = Team(data[3])
-            home = teams[data[3]]
+            index = 1
+            time = "00:00"
+            if has_time:
+                index = 0
+                time = data[2]
             
-            if data[4] not in teams:
-                teams[data[4]] = Team(data[4])
-            away = teams[data[4]]
+            if data[3 - index] not in teams:
+                teams[data[3 - index]] = Team(data[3 - index], div)
+            home = teams[data[3 - index]]
+            
+            if data[4 - index] not in teams:
+                teams[data[4 - index]] = Team(data[4 - index], div)
+            away = teams[data[4 - index]]
 
-            fthg = data[5]
-            ftag = data[6]
-            ftr = data[7]
-            hthg = data[8]
-            htag = data[9]
-            b365h = data[24]
-            b365d = data[25]
-            b365a = data[26]
+            fthg = int(data[5 - index])
+            ftag = int(data[6 - index])
+            ftr = data[7 - index]
+            hthg = int(data[8 - index])
+            htag = int(data[9 - index])
+            b365h = float(data[24 - index])
+            b365d = float(data[25 - index])
+            b365a = float(data[26 - index])
 
-            fixtures.append(Match(div, date, time, home, away, fthg, ftag, ftr, hthg, htag, b365h, b365d, b365a))
+            fixtures.append(Fixture(div, date, time, home, away, fthg, ftag, ftr, hthg, htag, b365h, b365d, b365a))
 
         return Table(list(teams.values()), fixtures)
 
 @total_ordering
 class Team:
-    def __init__(self, name):
+    def __init__(self, name, div):
         self.name = name
+        self.div = div
         self.won = 0
         self.lost = 0
         self.drawn = 0
         self.gf = 0
         self.ga = 0
+        self.fixtures_played = []
+
+    def play(self, fixture):
+        if fixture in self.fixtures_played:
+            raise RuntimeError(f"Fixture {fixture} has already been played")
+        if fixture.home != self and fixture.away != self:
+            raise RuntimeError(f"Fixture {fixture} does not involve team {self}")
+        
+        if fixture.home == self:
+            self.gf += fixture.fthg
+            self.ga += fixture.ftag
+            if fixture.ftr == 'H':
+                self.won += 1
+            elif fixture.ftr == 'A':
+                self.lost += 1
+            elif fixture.ftr == 'D':
+                self.drawn += 1
+            else:
+                raise RuntimeError(f"Invalid match result in {fixture}")
+        else:
+            self.gf += fixture.ftag
+            self.ga += fixture.fthg
+            if fixture.ftr == 'H':
+                self.lost += 1
+            elif fixture.ftr == 'A':
+                self.won += 1
+            elif fixture.ftr == 'D':
+                self.drawn += 1
+            else:
+                raise RuntimeError(f"Invalid match result in {fixture}")
+            
+        self.fixtures_played.append(fixture)
+        
+    def played(self):
+        return len(self.fixtures_played)
 
     def points(self):
         return self.won * 3 + self.drawn
@@ -88,11 +188,18 @@ class Team:
 
         return self.points() == other.points() and self.gd() == other.gd() and self.gf == other.gf and self.name == other.name
 
+    def __hash__(self):
+        return hash((self.name))
+
 @total_ordering
-class Match:
+class Fixture:
     def __init__(self, div, date, time, home, away, fthg, ftag, ftr, hthg, htag, b365h, b365d, b365a):
         self.div = div
-        self.datetime = datetime.strptime(date + " " + time, "%d/%m/%Y %H:%M")
+        date_parts = date.split("/")
+        if len(date_parts[-1]) == 4:
+            self.datetime = datetime.strptime(date + " " + time, "%d/%m/%Y %H:%M")
+        else:
+            self.datetime = datetime.strptime(date + " " + time, "%d/%m/%y %H:%M")
         self.home = home
         self.away = away
         self.fthg = fthg
@@ -104,6 +211,10 @@ class Match:
         self.b365d = b365d
         self.b365a = b365a
 
+    def play(self):
+        self.home.play(self)
+        self.away.play(self)
+
     def __repr__(self):
         return (
             f"Match{{div: {self.div}, datetime: {self.datetime}, home: {self.home}, away: {self.away}, fthg: {self.fthg}, "
@@ -112,11 +223,11 @@ class Match:
         )
 
     def __lt__(self, other):
-        if other == None or not isinstance(other, Match):
+        if other == None or not isinstance(other, Fixture):
             return False
 
     def __eq__(self, other):
-        if other == None or not isinstance(other, Match):
+        if other == None or not isinstance(other, Fixture):
             return False
 
         return self.div == other.div and self.datetime == other.datetime \
