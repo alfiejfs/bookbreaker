@@ -1,4 +1,4 @@
-from models import Table
+from matchmodels import Table
 from datetime import timedelta
 
 class MatchRunner:

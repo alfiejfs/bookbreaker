@@ -1,11 +1,12 @@
-from models import Table, Fixture, Bet
+from matchmodels import Table, Fixture
+from bet import Bet
 from strategy import Strategy
 
 class AlwaysAway(Strategy):
     
-    def __init__(self, table: Table, amount: float):
+    def __init__(self, table: Table, stake: float):
         Strategy.__init__(self, table)
-        self.amount = amount
+        self.stake = stake
 
     def handle_fixture(self, fixture: Fixture) -> Bet:
-        return Bet(fixture, 'A', fixture.b365h, self.amount)
+        return Bet(fixture, 'A', fixture.b365h, self.stake)

@@ -1,31 +1,6 @@
 from functools import total_ordering
 from datetime import datetime
-
-class Bet:
-    def __init__(self, fixture, result, odds, amount):
-        self.fixture = fixture
-        self.result = result
-        self.odds = odds
-        self.amount = amount
-
-    def check(self):
-        if self.fixture.ftr == self.result:
-            return True
-        else:
-            return False
-
-    def get_return(self):
-        if self.check():
-            return self.get_profit()
-        else:
-            return self.get_loss()
-
-    def get_profit(self):
-        return (self.amount * self.odds) - self.amount
-
-    def get_loss(self):
-        return self.amount
-
+            
 class Table:
     def __init__(self, teams, fixtures_to_play):
         self.teams = teams
@@ -41,6 +16,10 @@ class Table:
     def reorder_fixtures(self):
         self.fixtures_to_play = sorted(self.fixtures_to_play)
 
+    def position_of(self, team):
+        self.sort_teams()
+        return self.teams.index(team) 
+
     def play_next_fixture(self):
         fixture = self.fixtures_to_play[0]
         self.fixtures_to_play.remove(fixture)
@@ -53,7 +32,7 @@ class Table:
     def get_next_fixture(self):
         return self.fixtures_to_play[0]
 
-    def show_table(self):
+    def show(self):
         self.sort_teams()
 
         print("Pos. Team | MP | W D L | GF GA GD | Pts")
@@ -85,6 +64,7 @@ class Table:
             div = data[0]
             date = data[1]
             
+            # Some data doesn't record the time. If not, all times will be 00:00
             index = 1
             time = "00:00"
             if has_time:
@@ -195,11 +175,14 @@ class Team:
 class Fixture:
     def __init__(self, div, date, time, home, away, fthg, ftag, ftr, hthg, htag, b365h, b365d, b365a):
         self.div = div
+
+        # Some data records the year in two digits, some in four
         date_parts = date.split("/")
         if len(date_parts[-1]) == 4:
             self.datetime = datetime.strptime(date + " " + time, "%d/%m/%Y %H:%M")
         else:
             self.datetime = datetime.strptime(date + " " + time, "%d/%m/%y %H:%M")
+
         self.home = home
         self.away = away
         self.fthg = fthg
